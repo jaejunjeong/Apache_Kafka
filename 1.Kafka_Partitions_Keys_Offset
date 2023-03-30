@@ -1,0 +1,93 @@
+##Terminal_1(Except Zookeeper terminal and broker terminal)
+#Create topic 'bankbranch' wtih 2 partitions
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --topic bankbranch  --partitions 2
+
+#Check the topic list
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+#Check the more detail of the topic
+bin/kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic bankbranch
+
+'''If no message keys are specified, messages will be published to these two partitions in an alternating sequence, like this:
+Partition 0 -> Partition 1 -> Partition 0 -> Partition 1 …'''
+
+#Start the producer
+bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic bankbranch 
+
+#Send the message
+'''
+{"atmid": 1, "transid": 100}
+{"atmid": 1, "transid": 101}
+{"atmid": 2, "transid": 200}
+{"atmid": 2, "transid": 200}
+{"atmid": 2, "transid": 201}
+'''
+
+##Terminal_2
+#Start the consumer to subscribe to the bankbranch topic
+cd kafka_2.12-2.8.0
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bankbranch --from-beginning
+
+#But you can check that the result is not in published order like this:
+'''
+{"atmid": 1, "transid": 101}
+{"atmid": 1, "transid": 102}
+{"atmid": 1, "transid": 100}
+{"atmid": 2, "transid": 200}
+{"atmid": 2, "transid": 201}
+'''
+
+#Stop the 1.consumer, 2.producer
+'''Press Ctrl + C on each terminal'''
+
+##Terminal_1
+#Start the new producer with message key enabled(--propery parse.key=true -> enable key, --property key.separator=: -> delimiter :)
+bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic bankbranch --property parse.key=true --property key.separator=:
+
+#Send the message
+'''
+1:{"atmid": 1, "transid": 102}
+1:{"atmid": 1, "transid": 103}
+2:{"atmid": 2, "transid": 202}
+2:{"atmid": 2, "transid": 203}
+1:{"atmid": 1, "transid": 104}
+'''
+
+##Terminal_2
+#Start the new consumer with message key enabled 
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bankbranch --from-beginning --property print.key=true --property key.separator=:
+
+#Stop the consumer
+'''Press Ctrl + C on terminal'''
+
+#Start the consumer with consumer group(We normally group related consumers together as a consumer group)
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bankbranch --group atm-app
+'''But it will not show any lines since all messages have already been consumed, and therefore dequeued, by previous consumers.'''
+
+#Show the details of the consumer group atm-app
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group atm-app
+
+#Swith to prodcuer and enter lines
+'''
+1:{"atmid": 1, "transid": 105}
+2:{"atmid": 2, "transid": 204}
+'''
+#Switch back to the consumer terminal and check the consumer group details again
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group atm-app
+
+#Check the consumer group agian
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bankbranch --group atm-app
+
+#Stop consumer and reset the offset
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092  --topic bankbranch --group atm-app --reset-offsets --to-earliest --execute
+
+#Check the consumer group agian
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bankbranch --group atm-app
+
+#Reset and start consumber again
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092  --topic bankbranch --group atm-app --reset-offsets --to-earliest --execute
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bankbranch --group atm-app
+
+#Shift the offset -2 and check the lines
+bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092  --topic bankbranch --group atm-app --reset-offsets --shift-by -2 --execute
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic bankbranch --group atm-app
